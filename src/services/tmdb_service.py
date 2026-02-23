@@ -1,6 +1,6 @@
 import requests
 
-from config.config import API_TMDB_URL, TMDB_API_KEY
+from src.config.config import API_TMDB_URL, TMDB_API_KEY
 
 def get_movie(title: str):
     """Fetch movie details from TMDB API based on the title"""

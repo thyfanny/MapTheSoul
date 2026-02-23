@@ -1,71 +1,35 @@
+from src.config.constants import APP_SUBTITLE, APP_TITLE, GENEROS_PT
+from src.ui.components import render_header, render_movie_card
 import streamlit as st
 from dotenv import load_dotenv
 
-from domain.recommendation import recomendation
-from infra.dataset_loader import load_dataset
-from infra.resource_loader import load_encoder, load_maps, load_model
-from services.tmdb_service import get_movie
-from theme.style import inject_css
+from src.infra.resource_loader import load
+from src.services.tmdb_service import get_movie
+from src.theme.style import inject_css
+from src.infra.dataset_loader import load_dataset
+from src.domain.recommendation import recomendation
+
 
 load_dotenv()
 
-# ============================================================
-# TRADUÇÃO DE GÊNEROS
-# ============================================================
-
-GENEROS_PT = {
-    "Action": "Ação",
-    "Adventure": "Aventura",
-    "Animation": "Animação",
-    "Biography": "Biografia",
-    "Comedy": "Comédia",
-    "Crime": "Crime",
-    "Drama": "Drama",
-    "Family": "Família",
-    "Fantasy": "Fantasia",
-    "Film-Noir": "Film Noir",
-    "History": "História",
-    "Horror": "Terror",
-    "Music": "Música",
-    "Musical": "Musical",
-    "Mystery": "Mistério",
-    "Romance": "Romance",
-    "Sci-Fi": "Ficção Científica",
-    "Sport": "Esporte",
-    "Thriller": "Thriller",
-    "War": "Guerra",
-    "Western": "Faroeste"
-}
+@st.cache_resource
+def load_assets():
+    """Load all necessary assets for the app, including the model, label encoder, maps, and dataset"""
+    return load("models/model.pkl"), load("models/label_encoder.pkl"), \
+           load("models/maps.pkl"), load_dataset()
 
 def main():
     """Main function to render the Streamlit app interface and handle user interactions"""
-    st.set_page_config(
-        page_title="MapTheSoul",
-        page_icon="🎬",
-        layout="wide",
-        initial_sidebar_state="collapsed"
-    )
-
+    st.set_page_config(page_title="MapTheSoul", page_icon="🎬", layout="wide")
     inject_css()
 
-    model = load_model()
-    encoder = load_encoder()
-    maps = load_maps()
-    df = load_dataset()
+    model, encoder, maps, df = load_assets()
 
-    # HEADER
-    st.markdown('<h1 class="main-title">MAP THE SOUL</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="main-subtitle">find the film that speaks to your soul</p>', unsafe_allow_html=True)
-    st.markdown('<hr class="divider">', unsafe_allow_html=True)
-
-    # PAINEL DE CONTROLES NA PÁGINA PRINCIPAL
-    st.markdown('<p class="section-label">✦ &nbsp; map your moment &nbsp; ✦</p>', unsafe_allow_html=True)
-    st.markdown("<br>", unsafe_allow_html=True)
-
+    render_header(APP_TITLE, APP_SUBTITLE)
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        genero_pt = st.selectbox(
+        genre_pt = st.selectbox(
             "qual gênero você prefere?",
             [GENEROS_PT[g] for g in maps["generos"]]
         )
@@ -92,7 +56,7 @@ def main():
         )
 
     # Converte gênero de volta para inglês
-    genero = [k for k, v in GENEROS_PT.items() if v == genero_pt][0]
+    genero = [k for k, v in GENEROS_PT.items() if v == genre_pt][0]
 
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -103,14 +67,14 @@ def main():
     if buscar:
         st.session_state["buscar"] = True
         st.session_state["genero"] = genero
-        st.session_state["genero_pt"] = genero_pt
+        st.session_state["genero_pt"] = genre_pt
         st.session_state["duracao"] = duracao
         st.session_state["decada"] = decada
         st.session_state["nota_minima"] = nota_minima
 
     st.markdown('<hr class="divider">', unsafe_allow_html=True)
 
-    # RESULTADOS
+    # SEARCH
     if st.session_state.get("buscar"):
         with st.spinner("mapeando sua alma cinematográfica..."):
             recomendados = recomendation(
@@ -131,16 +95,7 @@ def main():
             for i, (_, filme) in enumerate(recomendados.iterrows()):
                 poster, sinopse = get_movie(filme["Series_Title"])
                 with cols[i % 2]:
-                    if poster:
-                        st.image(poster, width=180)
-                    st.markdown(
-                        f'<div class="filme-card">'
-                        f'<p class="filme-titulo">{filme["Series_Title"]}</p>'
-                        f'<p class="filme-meta">⭐ {filme["IMDB_Rating"]} &nbsp;·&nbsp; {st.session_state["genero_pt"]} &nbsp;·&nbsp; {filme["Runtime"]} min &nbsp;·&nbsp; {filme["Released_Year"]}</p>'
-                        f'<p class="filme-sinopse">{sinopse}</p>'
-                        f'</div>',
-                        unsafe_allow_html=True
-                    )
+                    render_movie_card(filme, poster, sinopse, genre_pt)
     else:
         st.markdown("<br><br>", unsafe_allow_html=True)
         st.markdown("""
