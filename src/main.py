@@ -1,17 +1,13 @@
-# ============================================================
-# MapTheSoul
-# ============================================================
-
 import streamlit as st
-import pandas as pd
-import pickle
-import requests
-import os
 from dotenv import load_dotenv
-from style import inject_css
+
+from domain.recommendation import recomendation
+from infra.dataset_loader import load_dataset
+from infra.resource_loader import load_encoder, load_maps, load_model
+from services.tmdb_service import get_movie
+from theme.style import inject_css
 
 load_dotenv()
-TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 
 # ============================================================
 # TRADUÇÃO DE GÊNEROS
@@ -41,98 +37,8 @@ GENEROS_PT = {
     "Western": "Faroeste"
 }
 
-# ============================================================
-# CARREGAMENTO DE RECURSOS
-# ============================================================
-
-@st.cache_resource
-def load_model():
-    with open("data/model.pkl", "rb") as f:
-        return pickle.load(f)
-
-@st.cache_resource
-def load_encoder():
-    with open("data/label_encoder.pkl", "rb") as f:
-        return pickle.load(f)
-
-@st.cache_resource
-def load_maps():
-    with open("data/maps.pkl", "rb") as f:
-        return pickle.load(f)
-
-@st.cache_data
-def load_dataset():
-    df = pd.read_csv("data/imdb_top_1000.csv")
-    df.dropna(subset=["Genre", "IMDB_Rating", "Runtime", "Meta_score", "No_of_Votes", "Released_Year"], inplace=True)
-    df["Runtime"] = df["Runtime"].apply(lambda x: int(x.replace(" min", "").strip()))
-    df["Released_Year"] = pd.to_numeric(df["Released_Year"], errors="coerce")
-    df.dropna(inplace=True)
-    df["Released_Year"] = df["Released_Year"].astype(int)
-    return df
-
-# ============================================================
-# TMDB
-# ============================================================
-
-def buscar_filme_tmdb(titulo):
-    url = "https://api.themoviedb.org/3/search/movie"
-    params = {"api_key": TMDB_API_KEY, "query": titulo, "language": "pt-BR"}
-    try:
-        response = requests.get(url, params=params)
-        data = response.json()
-        if data["results"]:
-            filme = data["results"][0]
-            poster = f"https://image.tmdb.org/t/p/w500{filme['poster_path']}" if filme.get("poster_path") else None
-            sinopse = filme.get("overview", "Sinopse não disponível.")
-            return poster, sinopse
-    except:
-        pass
-    return None, "Sinopse não disponível."
-
-# ============================================================
-# RECOMENDAÇÃO
-# ============================================================
-
-def recomendar_filmes(genero, duracao, decada, nota_minima, model, encoder, maps, df):
-    """Filtra e classifica filmes com base nas preferências do usuário"""
-
-    # Filtra filmes que contenham o gênero escolhido em qualquer posição
-    df_filtrado = df[df["Genre"].apply(lambda x: genero in [g.strip() for g in x.split(",")])].copy()
-
-    min_dur, max_dur = maps["duracao"][duracao]
-    df_filtrado = df_filtrado[
-        (df_filtrado["Runtime"] >= min_dur) &
-        (df_filtrado["Runtime"] <= max_dur)
-    ]
-
-    if maps["decada"][decada] is not None:
-        min_ano, max_ano = maps["decada"][decada]
-        df_filtrado = df_filtrado[
-            (df_filtrado["Released_Year"] >= min_ano) &
-            (df_filtrado["Released_Year"] <= max_ano)
-        ]
-
-    df_filtrado = df_filtrado[df_filtrado["IMDB_Rating"] >= nota_minima]
-
-    if df_filtrado.empty:
-        return pd.DataFrame()
-
-    df_filtrado["Genre_encoded"] = encoder.transform([genero] * len(df_filtrado))
-
-    features = ["Genre_encoded", "Runtime", "Meta_score", "No_of_Votes"]
-    df_filtrado["Recomendado"] = model.predict(df_filtrado[features])
-
-    recomendados = df_filtrado[df_filtrado["Recomendado"] == 1][
-        ["Series_Title", "Genre", "IMDB_Rating", "Runtime", "Released_Year"]
-    ].copy()
-
-    return recomendados.sample(frac=1).head(10)
-
-# ============================================================
-# INTERFACE PRINCIPAL
-# ============================================================
-
 def main():
+    """Main function to render the Streamlit app interface and handle user interactions"""
     st.set_page_config(
         page_title="MapTheSoul",
         page_icon="🎬",
@@ -207,7 +113,7 @@ def main():
     # RESULTADOS
     if st.session_state.get("buscar"):
         with st.spinner("mapeando sua alma cinematográfica..."):
-            recomendados = recomendar_filmes(
+            recomendados = recomendation(
                 st.session_state["genero"],
                 st.session_state["duracao"],
                 st.session_state["decada"],
@@ -223,7 +129,7 @@ def main():
 
             cols = st.columns(2)
             for i, (_, filme) in enumerate(recomendados.iterrows()):
-                poster, sinopse = buscar_filme_tmdb(filme["Series_Title"])
+                poster, sinopse = get_movie(filme["Series_Title"])
                 with cols[i % 2]:
                     if poster:
                         st.image(poster, width=180)

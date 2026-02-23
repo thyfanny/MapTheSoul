@@ -1,10 +1,7 @@
-# ============================================================
-# MapTheSoul - Estilização CSS
-# ============================================================
-
 import streamlit as st
 
-def inject_css():
+def inject_css() -> None:
+    """Inject custom CSS styles into the Streamlit app for a unique visual identity"""
     st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Josefin+Sans:wght@100;300;400&display=swap');
