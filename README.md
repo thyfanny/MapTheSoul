@@ -70,7 +70,7 @@ Acesse o link abaixo e baixe o arquivo `imdb_top_1000.csv`:
 
 🔗 https://www.kaggle.com/datasets/harshitshankhdhar/imdb-dataset-of-top-1000-movies-and-tv-shows
 
-Coloque o arquivo dentro da pasta `data/`.
+Coloque o arquivo dentro da pasta `data/raw`.
 
 ### 5. Configure a chave da API do TMDB
 
@@ -85,13 +85,13 @@ Para obter a chave, crie uma conta em [themoviedb.org](https://www.themoviedb.or
 ### 6. Treine o modelo
 
 ```bash
-python model.py
+python -m src.trainer
 ```
 
 ### 7. Execute o aplicativo
 
 ```bash
-streamlit run app.py
+streamlit run main.py
 ```
 
 Acesse no navegador: `http://localhost:8501`
